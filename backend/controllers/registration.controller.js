@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const QRCode = require('qrcode');
 const Registration = require('../models/Registration.model');
 const Event = require('../models/Event');
+const Notification = require('../models/Notification.model');
 
 // @desc    Register for an event
 // @route   POST /api/registrations
@@ -29,6 +30,7 @@ exports.registerForEvent = async (req, res) => {
                 existing.ticketId = 'TKT-' + crypto.randomBytes(6).toString('hex').toUpperCase();
                 existing.qrCode = await QRCode.toDataURL(existing.ticketId);
                 existing.attended = false;
+                existing.paymentScreenshot = undefined;
                 await existing.save();
 
                 // Re-increment registered count
@@ -111,7 +113,14 @@ exports.getEventRegistrations = async (req, res) => {
         const registrations = await Registration.find({ event: req.params.eventId })
             .populate('user', 'name email')
             .sort({ createdAt: -1 });
-        res.json(registrations);
+
+        // Compute summary counts
+        const total = registrations.length;
+        const verified = registrations.filter(r => r.paymentStatus === 'verified' || r.paymentStatus === 'free').length;
+        const pending = registrations.filter(r => r.paymentStatus === 'pending').length;
+        const attended = registrations.filter(r => r.attended).length;
+
+        res.json({ registrations, summary: { total, verified, pending, attended } });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -122,7 +131,8 @@ exports.getEventRegistrations = async (req, res) => {
 exports.updatePaymentStatus = async (req, res) => {
     try {
         const { paymentStatus } = req.body;
-        const registration = await Registration.findById(req.params.id);
+        const registration = await Registration.findById(req.params.id)
+            .populate('event', 'title');
 
         if (!registration) {
             return res.status(404).json({ message: 'Registration not found' });
@@ -134,23 +144,42 @@ exports.updatePaymentStatus = async (req, res) => {
         // Adjust event.registeredCount based on status transitions
         if (oldStatus !== 'rejected' && newStatus === 'rejected') {
             // Moving TO rejected → decrement count
-            await Event.findByIdAndUpdate(registration.event, {
+            await Event.findByIdAndUpdate(registration.event._id || registration.event, {
                 $inc: { registeredCount: -1 }
             });
             // Safeguard: ensure count never goes below 0
             await Event.updateOne(
-                { _id: registration.event, registeredCount: { $lt: 0 } },
+                { _id: registration.event._id || registration.event, registeredCount: { $lt: 0 } },
                 { $set: { registeredCount: 0 } }
             );
         } else if (oldStatus === 'rejected' && newStatus !== 'rejected') {
             // Moving FROM rejected → re-increment count
-            await Event.findByIdAndUpdate(registration.event, {
+            await Event.findByIdAndUpdate(registration.event._id || registration.event, {
                 $inc: { registeredCount: 1 }
             });
         }
 
+        const eventTitle = registration.event?.title || 'an event';
+
         registration.paymentStatus = newStatus;
         await registration.save();
+
+        // Create notification for the user
+        if (newStatus === 'verified' && oldStatus !== 'verified') {
+            await Notification.create({
+                title: 'Payment Verified',
+                message: `Your payment for "${eventTitle}" has been verified.`,
+                receiver: registration.user,
+                type: 'payment'
+            });
+        } else if (newStatus === 'rejected' && oldStatus !== 'rejected') {
+            await Notification.create({
+                title: 'Payment Rejected',
+                message: `Your payment for "${eventTitle}" was rejected. Please resubmit.`,
+                receiver: registration.user,
+                type: 'payment'
+            });
+        }
 
         const populated = await Registration.findById(registration._id)
             .populate('user', 'name email')
@@ -197,7 +226,12 @@ exports.uploadPaymentScreenshot = async (req, res) => {
             return res.status(404).json({ message: 'Registration not found' });
         }
 
-        registration.paymentScreenshot = `/uploads/${req.file.filename}`;
+        // Ownership check: only the registration owner can upload
+        if (registration.user.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'Not authorized to upload for this registration' });
+        }
+
+        registration.paymentScreenshot = `/uploads/payments/${req.file.filename}`;
         await registration.save();
 
         res.json(registration);

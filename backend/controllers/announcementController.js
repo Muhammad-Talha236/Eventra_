@@ -1,4 +1,6 @@
 const Announcement = require('../models/Announcement.model');
+const Notification = require('../models/Notification.model');
+const User = require('../models/User');
 
 // @desc    Get all announcements
 // @route   GET /api/announcements
@@ -33,6 +35,26 @@ exports.createAnnouncement = async (req, res) => {
             targetRole,
             createdBy: req.user._id
         });
+
+        // Create notifications for all users matching targetRole
+        try {
+            let userFilter = {};
+            if (targetRole && targetRole !== 'all') {
+                userFilter.role = targetRole;
+            }
+            const users = await User.find(userFilter).select('_id');
+            if (users.length > 0) {
+                const notifications = users.map(u => ({
+                    title: `📢 ${title}`,
+                    message: message.length > 120 ? message.substring(0, 120) + '...' : message,
+                    receiver: u._id,
+                    type: 'announcement'
+                }));
+                await Notification.insertMany(notifications);
+            }
+        } catch (notifErr) {
+            console.error('Failed to create announcement notifications:', notifErr.message);
+        }
 
         const populated = await Announcement.findById(announcement._id)
             .populate('createdBy', 'name');

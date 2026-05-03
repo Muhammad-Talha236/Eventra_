@@ -20,7 +20,7 @@ router.get('/all', protect, authorize('admin', 'staff'), getAllRegistrations);
 router.get('/event/:eventId', protect, authorize('admin', 'staff'), getEventRegistrations);
 router.put('/:id/payment', protect, authorize('admin', 'staff'), updatePaymentStatus);
 router.put('/:id/attendance', protect, authorize('admin', 'staff'), markAttendance);
-router.put('/:id/payment-screenshot', protect, upload.single('paymentScreenshot'), uploadPaymentScreenshot);
+router.put('/:id/payment-screenshot', protect, upload.paymentUpload.single('paymentScreenshot'), uploadPaymentScreenshot);
 router.delete('/:id', protect, cancelRegistration);
 
 module.exports = router;

@@ -1,10 +1,17 @@
 const Incident = require('../models/Incident.model');
+const Notification = require('../models/Notification.model');
 
 // @desc    Get all incidents (admin/staff)
 // @route   GET /api/incidents
 exports.getAllIncidents = async (req, res) => {
     try {
-        const incidents = await Incident.find()
+        const { status, priority, type } = req.query;
+        let filter = {};
+        if (status) filter.status = status;
+        if (priority) filter.priority = priority;
+        if (type) filter.type = type;
+
+        const incidents = await Incident.find(filter)
             .populate('reportedBy', 'name email')
             .populate('event', 'title venue')
             .sort({ createdAt: -1 });
@@ -33,14 +40,16 @@ exports.reportIncident = async (req, res) => {
     try {
         const { title, description, type, priority, event } = req.body;
 
-        const incident = await Incident.create({
+        const incidentData = {
             title,
             description,
             type,
             priority,
             reportedBy: req.user._id,
-            event
-        });
+        };
+        if (event) incidentData.event = event;
+
+        const incident = await Incident.create(incidentData);
 
         const populated = await Incident.findById(incident._id)
             .populate('reportedBy', 'name')
@@ -65,6 +74,18 @@ exports.updateIncidentStatus = async (req, res) => {
 
         if (!incident) {
             return res.status(404).json({ message: 'Incident not found' });
+        }
+
+        // Create notification for the reporter
+        try {
+            await Notification.create({
+                title: 'Incident Status Updated',
+                message: `Your incident "${incident.title}" status changed to ${status.replace('_', ' ')}.`,
+                receiver: incident.reportedBy._id || incident.reportedBy,
+                type: 'incident'
+            });
+        } catch (notifErr) {
+            console.error('Failed to create incident notification:', notifErr.message);
         }
 
         res.json(incident);
