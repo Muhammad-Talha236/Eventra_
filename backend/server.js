@@ -40,7 +40,6 @@ app.use('/api/incidents', require('./routes/incidentRoutes'));
 app.use('/api/announcements', require('./routes/announcementRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/stats', require('./routes/statsRoutes'));
-app.use('/api/teams', require('./routes/teamRoutes'));
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)
