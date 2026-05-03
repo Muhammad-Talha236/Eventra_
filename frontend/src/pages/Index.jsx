@@ -95,7 +95,7 @@ export default function Index() {
                 <div className="mx-auto max-w-3xl text-center">
                   <div className="inline-flex items-center gap-2 rounded-full border border-[var(--ev-accent-border)] bg-[var(--ev-accent-bg-subtle)] px-4 py-1.5 text-[12px] font-semibold text-[var(--ev-muted)]">
                     <Sparkles className="h-3.5 w-3.5 text-[var(--ev-accent)]" />
-                    3 Days Â· {events.length}+ Events Â· 1 Mega Festival
+                    3 Days A· {events.length}+ Events A· 1 Mega Festival
                   </div>
 
                   <h1 className="mt-8 text-[48px] font-bold leading-[1.1] tracking-tight text-[var(--ev-text)] sm:text-[56px] lg:text-[72px]">
@@ -104,7 +104,7 @@ export default function Index() {
                   </h1>
 
                   <p className="mx-auto mt-6 max-w-xl text-[16px] leading-relaxed text-[var(--ev-muted)]">
-                    UniFest 2026 brings together e-sports tournaments, electrifying concerts, sports, qawali nights and a mega auto show â€” all on one platform.
+                    UniFest 2026 brings together e-sports tournaments, electrifying concerts, sports, qawali nights and a mega auto show - all on one platform.
                   </p>
 
                   <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
