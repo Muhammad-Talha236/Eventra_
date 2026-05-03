@@ -8,7 +8,7 @@ exports.getAllUsers = async (req, res) => {
         let query = {};
 
         if (role) {
-            // Support comma-separated roles: ?role=volunteer,co_head,main_head
+            // Support comma-separated roles: ?role=volunteer,staff
             const roles = role.split(',');
             query.role = { $in: roles };
         }
@@ -43,7 +43,14 @@ exports.addStaffMember = async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
 
-        const allowedRoles = ['staff', 'main_head', 'co_head', 'volunteer'];
+        // Staff can only add volunteers
+        if (req.user.role === 'staff') {
+            if (role !== 'volunteer') {
+                return res.status(403).json({ message: 'Staff can only add volunteers' });
+            }
+        }
+
+        const allowedRoles = ['staff', 'volunteer'];
         if (!allowedRoles.includes(role)) {
             return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
         }

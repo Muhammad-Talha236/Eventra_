@@ -20,9 +20,24 @@ exports.registerForEvent = async (req, res) => {
             return res.status(400).json({ message: 'Event is full' });
         }
 
-        // Check duplicate registration
+        // Check for existing registration — allow re-registration if previous was rejected
         const existing = await Registration.findOne({ user: userId, event: eventId });
         if (existing) {
+            if (existing.paymentStatus === 'rejected') {
+                // Allow re-registration: reset the existing record
+                existing.paymentStatus = event.isFree ? 'free' : 'pending';
+                existing.ticketId = 'TKT-' + crypto.randomBytes(6).toString('hex').toUpperCase();
+                existing.qrCode = await QRCode.toDataURL(existing.ticketId);
+                existing.attended = false;
+                await existing.save();
+
+                // Re-increment registered count
+                event.registeredCount += 1;
+                await event.save();
+
+                const populated = await Registration.findById(existing._id).populate('event');
+                return res.status(200).json(populated);
+            }
             return res.status(400).json({ message: 'Already registered for this event' });
         }
 
@@ -73,11 +88,17 @@ exports.getAllRegistrations = async (req, res) => {
         let query = {};
         if (paymentStatus) query.paymentStatus = paymentStatus;
 
-        const registrations = await Registration.find(query)
-            .populate('user', 'name email')
-            .populate('event', 'title fee')
-            .sort({ createdAt: -1 });
-        res.json(registrations);
+        const [registrations, pending, verified, rejected] = await Promise.all([
+            Registration.find(query)
+                .populate('user', 'name email')
+                .populate('event', 'title fee')
+                .sort({ createdAt: -1 }),
+            Registration.countDocuments({ paymentStatus: 'pending' }),
+            Registration.countDocuments({ paymentStatus: { $in: ['verified', 'free'] } }),
+            Registration.countDocuments({ paymentStatus: 'rejected' }),
+        ]);
+
+        res.json({ registrations, counts: { pending, verified, rejected } });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -101,17 +122,41 @@ exports.getEventRegistrations = async (req, res) => {
 exports.updatePaymentStatus = async (req, res) => {
     try {
         const { paymentStatus } = req.body;
-        const registration = await Registration.findByIdAndUpdate(
-            req.params.id,
-            { paymentStatus },
-            { new: true }
-        ).populate('user', 'name email').populate('event', 'title');
+        const registration = await Registration.findById(req.params.id);
 
         if (!registration) {
             return res.status(404).json({ message: 'Registration not found' });
         }
 
-        res.json(registration);
+        const oldStatus = registration.paymentStatus;
+        const newStatus = paymentStatus;
+
+        // Adjust event.registeredCount based on status transitions
+        if (oldStatus !== 'rejected' && newStatus === 'rejected') {
+            // Moving TO rejected → decrement count
+            await Event.findByIdAndUpdate(registration.event, {
+                $inc: { registeredCount: -1 }
+            });
+            // Safeguard: ensure count never goes below 0
+            await Event.updateOne(
+                { _id: registration.event, registeredCount: { $lt: 0 } },
+                { $set: { registeredCount: 0 } }
+            );
+        } else if (oldStatus === 'rejected' && newStatus !== 'rejected') {
+            // Moving FROM rejected → re-increment count
+            await Event.findByIdAndUpdate(registration.event, {
+                $inc: { registeredCount: 1 }
+            });
+        }
+
+        registration.paymentStatus = newStatus;
+        await registration.save();
+
+        const populated = await Registration.findById(registration._id)
+            .populate('user', 'name email')
+            .populate('event', 'title');
+
+        res.json(populated);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -170,10 +215,17 @@ exports.cancelRegistration = async (req, res) => {
             return res.status(404).json({ message: 'Registration not found' });
         }
 
-        // Decrement event count
-        await Event.findByIdAndUpdate(registration.event, { $inc: { registeredCount: -1 } });
-        await Registration.findByIdAndDelete(req.params.id);
+        // Only decrement count if registration was not already rejected
+        if (registration.paymentStatus !== 'rejected') {
+            await Event.findByIdAndUpdate(registration.event, { $inc: { registeredCount: -1 } });
+            // Safeguard: never below 0
+            await Event.updateOne(
+                { _id: registration.event, registeredCount: { $lt: 0 } },
+                { $set: { registeredCount: 0 } }
+            );
+        }
 
+        await Registration.findByIdAndDelete(req.params.id);
         res.json({ message: 'Registration cancelled' });
     } catch (err) {
         res.status(500).json({ message: err.message });

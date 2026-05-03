@@ -10,10 +10,9 @@ const {
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth.middleware');
 
-// All routes: admin only
-router.get('/', protect, authorize('admin'), getAllUsers);
-router.get('/:id', protect, authorize('admin'), getUserById);
-router.post('/add-staff', protect, authorize('admin'), addStaffMember);
+router.get('/', protect, authorize('admin', 'staff'), getAllUsers);
+router.get('/:id', protect, authorize('admin', 'staff'), getUserById);
+router.post('/add-staff', protect, authorize('admin', 'staff'), addStaffMember);
 router.put('/:id/role', protect, authorize('admin'), updateUserRole);
 router.put('/:id/toggle', protect, authorize('admin'), toggleUserStatus);
 router.delete('/:id', protect, authorize('admin'), deleteUser);

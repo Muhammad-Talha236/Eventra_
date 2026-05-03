@@ -9,10 +9,10 @@ const {
 } = require('../controllers/taskController');
 const { protect, authorize } = require('../middleware/auth.middleware');
 
-router.get('/', protect, authorize('admin', 'staff', 'main_head', 'co_head'), getAllTasks);
+router.get('/', protect, authorize('admin', 'staff'), getAllTasks);
 router.get('/my', protect, getMyTasks);
-router.post('/', protect, authorize('admin', 'staff', 'main_head', 'co_head'), createTask);
+router.post('/', protect, authorize('admin', 'staff'), createTask);
 router.put('/:id/status', protect, updateTaskStatus);
-router.delete('/:id', protect, authorize('admin', 'staff', 'main_head'), deleteTask);
+router.delete('/:id', protect, authorize('admin', 'staff'), deleteTask);
 
 module.exports = router;
