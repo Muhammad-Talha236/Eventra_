@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const QRCode = require('qrcode');
 const Registration = require('../models/Registration.model');
 const Event = require('../models/Event');
 
@@ -28,10 +29,14 @@ exports.registerForEvent = async (req, res) => {
         // Generate unique ticket ID
         const ticketId = 'TKT-' + crypto.randomBytes(6).toString('hex').toUpperCase();
 
+        // Generate QR code from ticketId
+        const qrCode = await QRCode.toDataURL(ticketId);
+
         const registration = await Registration.create({
             user: userId,
             event: eventId,
             ticketId,
+            qrCode,
             paymentStatus: event.isFree ? 'free' : 'pending'
         });
 
@@ -105,6 +110,50 @@ exports.updatePaymentStatus = async (req, res) => {
         if (!registration) {
             return res.status(404).json({ message: 'Registration not found' });
         }
+
+        res.json(registration);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// @desc    Mark / toggle attendance
+// @route   PUT /api/registrations/:id/attendance
+exports.markAttendance = async (req, res) => {
+    try {
+        const registration = await Registration.findById(req.params.id);
+        if (!registration) {
+            return res.status(404).json({ message: 'Registration not found' });
+        }
+
+        registration.attended = !registration.attended;
+        await registration.save();
+
+        const populated = await Registration.findById(registration._id)
+            .populate('user', 'name email')
+            .populate('event', 'title');
+
+        res.json(populated);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// @desc    Upload payment screenshot
+// @route   PUT /api/registrations/:id/payment-screenshot
+exports.uploadPaymentScreenshot = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file uploaded' });
+        }
+
+        const registration = await Registration.findById(req.params.id);
+        if (!registration) {
+            return res.status(404).json({ message: 'Registration not found' });
+        }
+
+        registration.paymentScreenshot = `/uploads/${req.file.filename}`;
+        await registration.save();
 
         res.json(registration);
     } catch (err) {

@@ -4,7 +4,14 @@ const Announcement = require('../models/Announcement.model');
 // @route   GET /api/announcements
 exports.getAllAnnouncements = async (req, res) => {
     try {
-        const announcements = await Announcement.find()
+        let filter = {};
+
+        // Non-admin users only see announcements targeted at 'all' or their role
+        if (req.user.role !== 'admin') {
+            filter.targetRole = { $in: ['all', req.user.role] };
+        }
+
+        const announcements = await Announcement.find(filter)
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
         res.json(announcements);

@@ -104,3 +104,39 @@ exports.getMe = async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 };
+
+// @desc    Update logged-in user's profile
+// @route   PUT /api/auth/profile
+exports.updateProfile = async (req, res) => {
+    try {
+        const { name, password, studentInfo, outsiderInfo } = req.body;
+
+        const user = await User.findById(req.user._id).select('+password');
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (name) user.name = name;
+        if (studentInfo) user.studentInfo = { ...user.studentInfo?.toObject?.() || {}, ...studentInfo };
+        if (outsiderInfo) user.outsiderInfo = { ...user.outsiderInfo?.toObject?.() || {}, ...outsiderInfo };
+        if (password) user.password = password; // hashed by pre-save hook
+
+        await user.save();
+
+        res.json({
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isVerified: user.isVerified,
+                isActive: user.isActive,
+                studentInfo: user.studentInfo,
+                outsiderInfo: user.outsiderInfo
+            }
+        });
+    } catch (err) {
+        console.error('Update profile error:', err.message);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
