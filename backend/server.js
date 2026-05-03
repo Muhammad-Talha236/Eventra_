@@ -8,14 +8,13 @@ const errorHandler = require('./middleware/error.middleware');
 
 const app = express();
 
-// CORS — read allowed origins from env, default to localhost:5173
+// CORS
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
     .split(',')
     .map(origin => origin.trim());
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, curl, etc.)
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -26,6 +25,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -40,16 +40,31 @@ app.use('/api/incidents', require('./routes/incidentRoutes'));
 app.use('/api/announcements', require('./routes/announcementRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/stats', require('./routes/statsRoutes'));
+app.use('/api/teams', require('./routes/teamRoutes'));
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log(err));
+  .then(() => {
+    console.log("MongoDB Connected");
+  })
+  .catch(err => {
+    console.error("MongoDB connection error:", err);
+    process.exit(1);
+  });
 
-// Test Route
-app.get('/', (req, res) => res.send("Eventra API is running..."));
+// Health check route — Render/UptimeRobot ping
+app.get('/', (req, res) => res.json({ 
+    status: 'ok',
+    message: 'Eventra API is running...',
+    timestamp: new Date().toISOString()
+}));
 
-// Centralized error handler (must be after all routes)
+// 404 handler — unknown routes
+app.use((req, res, next) => {
+    res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+});
+
+// Centralized error handler (must be last)
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
