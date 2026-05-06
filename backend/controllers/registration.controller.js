@@ -106,11 +106,14 @@ exports.getAllRegistrations = async (req, res) => {
     }
 };
 
-// @desc    Get registrations for a specific event
+// @desc    Get registrations for a specific event (exclude rejected)
 // @route   GET /api/registrations/event/:eventId
 exports.getEventRegistrations = async (req, res) => {
     try {
-        const registrations = await Registration.find({ event: req.params.eventId })
+        const registrations = await Registration.find({ 
+            event: req.params.eventId,
+            paymentStatus: { $ne: 'rejected' }
+        })
             .populate('user', 'name email')
             .sort({ createdAt: -1 });
 

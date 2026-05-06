@@ -3,7 +3,8 @@ import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { LoadingState, EmptyState } from "@/components/SharedUI";
 import { formatDate } from "@/lib/formatDate";
-import api, { STORAGE_URL } from "@/api/axios";
+import { getImageUrl } from "@/lib/imageUrl";
+import api from "@/api/axios";
 import { toast } from "sonner";
 
 const statusConfig = {
@@ -105,7 +106,21 @@ export default function MyRegistrations() {
                     <div className="mt-3 space-y-2">
                       {r.paymentScreenshot ? (
                         <div className="flex items-center gap-3">
-                          <img src={`${STORAGE_URL}${r.paymentScreenshot}`} alt="Proof" className="h-12 w-12 rounded-lg object-cover border border-[var(--ev-border)]" />
+                          <img
+                            src={getImageUrl(r.paymentScreenshot)}
+                            alt="Your payment proof"
+                            style={{
+                              width: '48px',
+                              height: '48px',
+                              objectFit: 'cover',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              border: '1px solid rgba(255,255,255,0.15)'
+                            }}
+                            onClick={() => window.open(getImageUrl(r.paymentScreenshot), '_blank')}
+                            title="Click to view full image"
+                            onError={(e) => e.target.style.opacity = '0.5'}
+                          />
                           <div>
                             <p className="text-[12px] text-[var(--ev-warning)] font-medium flex items-center gap-1"><Clock className="h-3 w-3" /> Payment proof submitted — awaiting verification</p>
                             <UploadButton registration={r} onUploaded={fetchRegistrations} />
@@ -128,10 +143,36 @@ export default function MyRegistrations() {
                   )}
 
                   {r.paymentStatus === "verified" && r.paymentScreenshot && (
-                    <div className="mt-3 flex items-center gap-2 text-[12px] text-[var(--ev-success)]">
-                      <CheckCircle className="h-3.5 w-3.5" /> Payment verified
+                    <div className="mt-3">
+                      <div className="flex items-center gap-2 text-[12px] text-[var(--ev-success)] mb-2">
+                        <CheckCircle className="h-3.5 w-3.5" /> Payment verified
+                      </div>
+                      <div style={{ marginTop: '12px' }}>
+                        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '6px' }}>
+                          Payment Proof:
+                        </p>
+                        <img
+                          src={getImageUrl(r.paymentScreenshot)}
+                          alt="Your payment proof"
+                          style={{
+                            width: '120px',
+                            height: '80px',
+                            objectFit: 'cover',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            border: '1px solid rgba(255,255,255,0.15)'
+                          }}
+                          onClick={() => window.open(getImageUrl(r.paymentScreenshot), '_blank')}
+                          title="Click to view full size"
+                          onError={(e) => e.target.style.opacity = '0.5'}
+                        />
+                        <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>
+                          Click to view full size
+                        </p>
+                      </div>
                     </div>
                   )}
+                
                 </div>
                 <Button size="sm" className="border border-[var(--ev-border)] bg-transparent text-[var(--ev-text)] hover:bg-[var(--ev-border)] rounded-lg shrink-0">
                   <Download className="mr-1 h-3.5 w-3.5" /> Ticket

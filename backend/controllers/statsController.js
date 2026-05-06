@@ -85,3 +85,49 @@ exports.getAdminStats = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
+// @desc    Sync/repair all event registeredCounts from actual registrations (admin only)
+// @route   POST /api/stats/sync-counts
+exports.syncRegisteredCounts = async (req, res) => {
+    try {
+        const events = await Event.find();
+        let syncedCount = 0;
+        const results = [];
+
+        for (const event of events) {
+            // Count only non-rejected registrations
+            const actualCount = await Registration.countDocuments({
+                event: event._id,
+                paymentStatus: { $nin: ['rejected'] }
+            });
+
+            // Update event with correct count
+            const updated = await Event.findByIdAndUpdate(
+                event._id,
+                { registeredCount: actualCount },
+                { new: true }
+            );
+
+            results.push({
+                eventId: event._id,
+                title: event.title,
+                previousCount: event.registeredCount,
+                actualCount: actualCount,
+                corrected: event.registeredCount !== actualCount
+            });
+
+            if (event.registeredCount !== actualCount) {
+                syncedCount++;
+            }
+        }
+
+        res.json({
+            message: `Synced ${syncedCount} event(s) registration counts`,
+            totalEvents: events.length,
+            syncedCount,
+            details: results
+        });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};

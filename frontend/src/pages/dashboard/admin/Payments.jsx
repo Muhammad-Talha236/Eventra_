@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { StatCard } from "@/components/StatCard";
 import { ModalOverlay, ConfirmModal, LoadingState, EmptyState, Pagination } from "@/components/SharedUI";
 import { formatDateTime } from "@/lib/formatDate";
-import api, { STORAGE_URL } from "@/api/axios";
+import { getImageUrl } from "@/lib/imageUrl";
+import api from "@/api/axios";
 import { toast } from "sonner";
 
 const PER_PAGE = 15;
@@ -30,16 +31,65 @@ function PaymentProofModal({ payment, onClose, onVerify, onReject }) {
           <h3 className="text-[18px] font-bold text-[var(--ev-text)]">Payment Proof</h3>
           <button onClick={onClose} className="rounded-lg p-1 text-[var(--ev-muted)] hover:text-[var(--ev-text)]"><X className="h-5 w-5" /></button>
         </div>
+
+        {/* Payment Screenshot Display with Fallback */}
         {payment.screenshot ? (
-          <div className="mb-4 rounded-[10px] overflow-hidden border border-[var(--ev-border)] bg-[var(--ev-elevated)]">
-            <img src={`${STORAGE_URL}${payment.screenshot}`} alt="Payment proof" className="w-full max-h-[400px] object-contain" />
+          <div style={{
+            width: '100%',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            marginBottom: '16px',
+            border: '1px solid rgba(255,255,255,0.1)'
+          }}>
+            <img
+              src={getImageUrl(payment.screenshot)}
+              alt="Payment proof screenshot"
+              style={{
+                width: '100%',
+                height: 'auto',
+                maxHeight: '400px',
+                objectFit: 'contain',
+                display: 'block',
+                backgroundColor: '#000'
+              }}
+              onError={(e) => {
+                e.target.style.display = 'none';
+                if (e.target.nextSibling) {
+                  e.target.nextSibling.style.display = 'flex';
+                }
+              }}
+            />
+            {/* Fallback if image fails to load */}
+            <div style={{
+              display: 'none',
+              width: '100%',
+              height: '200px',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(255,255,255,0.05)',
+              color: 'rgba(255,255,255,0.4)',
+              fontSize: '14px'
+            }}>
+              Image could not be loaded
+            </div>
           </div>
         ) : (
-          <div className="mb-4 flex flex-col items-center justify-center rounded-[10px] border border-[var(--ev-border)] bg-[var(--ev-elevated)] py-12">
-            <ImageOff className="h-10 w-10 text-[var(--ev-muted)]" />
-            <p className="mt-2 text-[13px] text-[var(--ev-muted)]">No screenshot uploaded yet</p>
+          <div style={{
+            width: '100%',
+            height: '150px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(255,255,255,0.05)',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            color: 'rgba(255,255,255,0.4)',
+            fontSize: '14px'
+          }}>
+            No payment proof uploaded yet
           </div>
         )}
+
         <div className="space-y-2 mb-5">
           <div className="flex justify-between text-[13px]">
             <span className="text-[var(--ev-muted)]">User</span>
