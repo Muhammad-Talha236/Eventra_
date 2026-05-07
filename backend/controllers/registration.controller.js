@@ -27,8 +27,15 @@ exports.registerForEvent = async (req, res) => {
             if (existing.paymentStatus === 'rejected') {
                 // Allow re-registration: reset the existing record
                 existing.paymentStatus = event.isFree ? 'free' : 'pending';
-                existing.ticketId = 'TKT-' + crypto.randomBytes(6).toString('hex').toUpperCase();
-                existing.qrCode = await QRCode.toDataURL(existing.ticketId);
+                // Only generate ticketId for free events; for paid events, generate on verification
+                if (event.isFree) {
+                    existing.ticketId = 'TKT-' + crypto.randomBytes(6).toString('hex').toUpperCase();
+                    existing.qrCode = await QRCode.toDataURL(existing.ticketId);
+                } else {
+                    // Clear ticketId for paid events until verification
+                    existing.ticketId = null;
+                    existing.qrCode = null;
+                }
                 existing.attended = false;
                 existing.paymentScreenshot = undefined;
                 await existing.save();
@@ -43,11 +50,14 @@ exports.registerForEvent = async (req, res) => {
             return res.status(400).json({ message: 'Already registered for this event' });
         }
 
-        // Generate unique ticket ID
-        const ticketId = 'TKT-' + crypto.randomBytes(6).toString('hex').toUpperCase();
-
-        // Generate QR code from ticketId
-        const qrCode = await QRCode.toDataURL(ticketId);
+        // For free events, generate ticket immediately; for paid events, wait for verification
+        let ticketId = null;
+        let qrCode = null;
+        
+        if (event.isFree) {
+            ticketId = 'TKT-' + crypto.randomBytes(6).toString('hex').toUpperCase();
+            qrCode = await QRCode.toDataURL(ticketId);
+        }
 
         const registration = await Registration.create({
             user: userId,
@@ -164,21 +174,29 @@ exports.updatePaymentStatus = async (req, res) => {
 
         const eventTitle = registration.event?.title || 'an event';
 
+        // Generate ticket when payment is verified (only for paid events that don't have a ticket yet)
+        if (newStatus === 'verified' && oldStatus !== 'verified' && !registration.ticketId) {
+            const ticketId = 'TKT-' + crypto.randomBytes(6).toString('hex').toUpperCase();
+            const qrCode = await QRCode.toDataURL(ticketId);
+            registration.ticketId = ticketId;
+            registration.qrCode = qrCode;
+        }
+
         registration.paymentStatus = newStatus;
         await registration.save();
 
         // Create notification for the user
         if (newStatus === 'verified' && oldStatus !== 'verified') {
             await Notification.create({
-                title: 'Payment Verified',
-                message: `Your payment for "${eventTitle}" has been verified.`,
+                title: 'Payment Verified — Your Ticket is Ready!',
+                message: `Your payment for "${eventTitle}" has been verified. Your ticket is now available.`,
                 receiver: registration.user,
                 type: 'payment'
             });
         } else if (newStatus === 'rejected' && oldStatus !== 'rejected') {
             await Notification.create({
                 title: 'Payment Rejected',
-                message: `Your payment for "${eventTitle}" was rejected. Please resubmit.`,
+                message: `Your payment for "${eventTitle}" was rejected. Please contact admin for assistance.`,
                 receiver: registration.user,
                 type: 'payment'
             });

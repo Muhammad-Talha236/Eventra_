@@ -11,10 +11,14 @@ export default function Tickets() {
     const fetchTickets = async () => {
       try {
         const res = await api.get("/registrations/my");
-        setTickets(res.data.filter((r) => r.event).map((r) => ({
-          id: r._id, ticketCode: r.ticketId, seat: "GA",
-          event: adaptEvents([r.event])[0],
-        })));
+        // Only show tickets where payment is verified or free
+        setTickets(res.data
+          .filter((r) => r.event && (r.paymentStatus === "verified" || r.paymentStatus === "free"))
+          .map((r) => ({
+            id: r._id, ticketCode: r.ticketId, seat: "GA",
+            event: adaptEvents([r.event])[0],
+          }))
+        );
       } catch {}
       finally { setLoading(false); }
     };

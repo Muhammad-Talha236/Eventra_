@@ -1,7 +1,8 @@
 import { ArrowLeft, Calendar, Clock, MapPin, Share2, Ticket, Users } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import RegistrationModal from "@/components/RegistrationModal";
 import { adaptEvent } from "@/lib/eventAdapter";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/api/axios";
@@ -10,16 +11,32 @@ import { toast } from "sonner";
 export default function EventDetails() {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [registering, setRegistering] = useState(false);
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [existingRegistration, setExistingRegistration] = useState(null);
 
   useEffect(() => {
     const fetchEvent = async () => {
       try {
         const res = await api.get(`/events/${id}`);
         setEvent(adaptEvent(res.data));
+
+        // Check if user is already registered for this event
+        if (user) {
+          try {
+            const regRes = await api.get("/registrations/my");
+            const myRegs = regRes.data || [];
+            const reg = myRegs.find(r => (r.event._id || r.event) === id);
+            if (reg) {
+              setExistingRegistration(reg);
+            }
+          } catch {
+            // Silently fail if can't fetch registrations
+          }
+        }
       } catch {
         setError("Event not found.");
       } finally {
@@ -27,19 +44,59 @@ export default function EventDetails() {
       }
     };
     fetchEvent();
-  }, [id]);
+  }, [id, user]);
 
-  const handleReserveTicket = async () => {
-    if (!user) { toast.error("Please login to reserve a ticket."); return; }
-    setRegistering(true);
-    try {
-      await api.post("/registrations", { eventId: event._id || event.id });
-      toast.success("Reserved! Check your registrations.");
-      // Refetch event to update registered count
-      const res = await api.get(`/events/${id}`);
+  const getReserveButtonState = () => {
+    if (!user) {
+      return { label: "Login to Register", disabled: true, action: "login" };
+    }
+
+    if (!existingRegistration) {
+      return { label: "Reserve Ticket", disabled: false, action: "register" };
+    }
+
+    // User is already registered
+    if (existingRegistration.paymentStatus === "rejected") {
+      return { label: "Re-Register", disabled: false, action: "register" };
+    }
+
+    // Registered and not rejected
+    return { label: "Already Registered", disabled: true, action: "none" };
+  };
+
+  const isFull = event && event.capacity > 0 && event.registered >= event.capacity;
+
+  const handleReserveTicket = () => {
+    const state = getReserveButtonState();
+
+    if (state.action === "login") {
+      navigate("/login");
+      return;
+    }
+
+    if (state.action === "register") {
+      setShowRegistrationModal(true);
+      return;
+    }
+  };
+
+  const handleRegistrationSuccess = () => {
+    // Refetch event and registrations
+    api.get(`/events/${id}`).then(res => {
       setEvent(adaptEvent(res.data));
-    } catch (err) { toast.error(err.response?.data?.message || "Failed to register."); }
-    finally { setRegistering(false); }
+    });
+
+    if (user) {
+      api.get("/registrations/my").then(res => {
+        const myRegs = res.data || [];
+        const reg = myRegs.find(r => (r.event._id || r.event) === id);
+        if (reg) {
+          setExistingRegistration(reg);
+        }
+      });
+    }
+
+    toast.success("Registration successful!");
   };
 
   if (loading) return <div className="mx-auto max-w-[1200px] px-6 py-20 text-center text-[var(--ev-muted)]">Loading event...</div>;
@@ -116,7 +173,7 @@ export default function EventDetails() {
         <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <div className="rounded-[14px] border border-[var(--ev-accent-border)] bg-[var(--ev-surface)] p-6">
             <p className="text-[13px] text-[var(--ev-muted)]">Ticket price</p>
-            <p className="mt-1 text-[36px] font-bold text-[var(--ev-accent)]">PKR {(event.price || 0).toLocaleString()}</p>
+            <p className="mt-1 text-[36px] font-bold text-[var(--ev-accent)]">{event.isFree ? "FREE" : `PKR ${(event.price || 0).toLocaleString()}`}</p>
 
             <div className="mt-6">
               <div className="mb-2 flex justify-between text-[12px] text-[var(--ev-muted)]">
@@ -128,10 +185,28 @@ export default function EventDetails() {
               </div>
             </div>
 
-            <Button onClick={handleReserveTicket} disabled={registering} className="mt-6 h-11 w-full bg-[var(--ev-accent)] text-white hover:bg-[var(--ev-accent-hover)] rounded-[10px]">
-              <Ticket className="mr-2 h-4 w-4" />
-              {registering ? "Reserving..." : "Reserve Ticket"}
-            </Button>
+            {(() => {
+              const btnState = getReserveButtonState();
+              const isFull = event.capacity > 0 && event.registered >= event.capacity;
+              const isDisabled = btnState.disabled || isFull;
+              const label = isFull ? "Event Full" : btnState.label;
+
+              return (
+                <Button
+                  onClick={handleReserveTicket}
+                  disabled={isDisabled}
+                  className={`mt-6 h-11 w-full rounded-[10px] ${
+                    isDisabled
+                      ? "bg-[var(--ev-muted)] text-[var(--ev-muted-text)] cursor-not-allowed opacity-50"
+                      : "bg-[var(--ev-accent)] text-white hover:bg-[var(--ev-accent-hover)]"
+                  }`}
+                >
+                  <Ticket className="mr-2 h-4 w-4" />
+                  {label}
+                </Button>
+              );
+            })()}
+
             <Button onClick={() => toast("Link copied!")} className="mt-2 w-full h-11 border border-[var(--ev-border)] bg-transparent text-[var(--ev-text)] hover:bg-[var(--ev-border)] rounded-[10px]">
               <Share2 className="mr-2 h-4 w-4" /> Share
             </Button>
@@ -149,6 +224,16 @@ export default function EventDetails() {
           </div>
         </div>
       </div>
+
+      {/* Registration Modal */}
+      {showRegistrationModal && event && user && (
+        <RegistrationModal
+          event={event}
+          user={user}
+          onClose={() => setShowRegistrationModal(false)}
+          onSuccess={handleRegistrationSuccess}
+        />
+      )}
     </div>
   );
 }
