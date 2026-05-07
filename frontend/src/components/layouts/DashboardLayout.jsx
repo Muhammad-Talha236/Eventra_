@@ -102,7 +102,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Fetch unread notification count
+  // Fetch unread notification count - refresh on mount and when navigating
   useEffect(() => {
     if (!user) return;
     const fetchUnread = async () => {
@@ -113,9 +113,15 @@ export default function DashboardLayout() {
       } catch {}
     };
     fetchUnread();
-    // Refresh count when location changes (e.g., after marking as read)
-    const interval = setInterval(fetchUnread, 30000); // every 30s
-    return () => clearInterval(interval);
+    // Refresh count every 10s to stay in sync
+    const interval = setInterval(fetchUnread, 10000);
+    // Listen for immediate updates from Notifications page
+    const handleUpdate = () => fetchUnread();
+    window.addEventListener('notifications-updated', handleUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notifications-updated', handleUpdate);
+    };
   }, [user, location.pathname]);
 
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-[var(--ev-bg)]"><p className="text-[var(--ev-muted)]">Loading...</p></div>;

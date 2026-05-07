@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, Bell, Calendar, Ticket, Trophy } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Calendar, Ticket, Trophy, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { EventCard } from "@/components/EventCard";
@@ -80,7 +80,50 @@ export default function UserOverview() {
             <p className="text-[14px] font-semibold text-[var(--ev-danger)]">Payment Rejected</p>
           </div>
           {rejectedEvents.map((event) => (
-            <div key={event.id} className="flex items-center justify-between rounded-[10px] border border-[var(--ev-danger-border)] bg-[var(--ev-bg)] p-3">
+            <div key={event.id} style={{ position: 'relative', paddingRight: '52px' }} className="flex items-center justify-between rounded-[10px] border border-[var(--ev-danger-border)] bg-[var(--ev-bg)] p-3">
+              {/* Dismiss button */}
+              <button
+                onClick={async () => {
+                  try {
+                    await api.delete(`/registrations/${event._regId}`);
+                    setRejectedEvents(prev => prev.filter(r => r._regId !== event._regId));
+                  } catch (err) {
+                    console.error('Failed to dismiss:', err);
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  lineHeight: 1,
+                  transition: 'all 0.2s ease',
+                  flexShrink: 0
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                  e.currentTarget.style.color = '#EF4444';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                }}
+                title="Dismiss"
+              >
+                ✕
+              </button>
               <div>
                 <p className="text-[14px] font-semibold text-[var(--ev-text)]">{event.title}</p>
                 <p className="text-[12px] text-[var(--ev-muted)]">Your payment was rejected. Please re-register to try again.</p>

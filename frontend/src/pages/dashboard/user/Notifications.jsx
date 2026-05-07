@@ -24,6 +24,8 @@ export default function Notifications() {
     try {
       await api.put(`/notifications/${id}/read`);
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
+      // Dispatch event to notify other components (like bell count)
+      window.dispatchEvent(new CustomEvent('notifications-updated'));
     } catch {}
   };
 
@@ -31,6 +33,8 @@ export default function Notifications() {
     try {
       await api.put("/notifications/read-all");
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      // Dispatch event to notify other components (like bell count)
+      window.dispatchEvent(new CustomEvent('notifications-updated'));
       toast.success("All notifications marked as read");
     } catch { toast.error("Failed"); }
   };

@@ -242,7 +242,9 @@ exports.uploadPaymentScreenshot = async (req, res) => {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        const registration = await Registration.findById(req.params.id);
+        const registration = await Registration.findById(req.params.id)
+            .populate('event', 'title')
+            .populate('user', 'name email');
         if (!registration) {
             return res.status(404).json({ message: 'Registration not found' });
         }
@@ -254,6 +256,23 @@ exports.uploadPaymentScreenshot = async (req, res) => {
 
         registration.paymentScreenshot = `/uploads/payments/${req.file.filename}`;
         await registration.save();
+
+        // Create notification for admins about new payment awaiting verification
+        const User = require('../models/User');
+        const admins = await User.find({ role: 'admin' }).select('_id');
+        const eventTitle = registration.event?.title || 'an event';
+        const userName = registration.user?.name || 'A user';
+        
+        const adminNotifications = admins.map(admin => ({
+            title: 'New Payment Awaiting Verification',
+            message: `${userName} submitted payment for "${eventTitle}". Please verify.`,
+            receiver: admin._id,
+            type: 'payment'
+        }));
+        
+        if (adminNotifications.length > 0) {
+            await Notification.insertMany(adminNotifications);
+        }
 
         res.json(registration);
     } catch (err) {

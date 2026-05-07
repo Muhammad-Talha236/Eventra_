@@ -1,7 +1,7 @@
-import { Calendar, Download, MapPin, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Calendar, Download, MapPin, CheckCircle, XCircle, Clock, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LoadingState, EmptyState } from "@/components/SharedUI";
+import { LoadingState, EmptyState, ConfirmModal } from "@/components/SharedUI";
 import { formatDate } from "@/lib/formatDate";
 import { getImageUrl } from "@/lib/imageUrl";
 import api from "@/api/axios";
@@ -17,6 +17,7 @@ const statusConfig = {
 export default function MyRegistrations() {
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dismissTarget, setDismissTarget] = useState(null);
 
   const fetchRegistrations = async () => {
     try {
@@ -27,6 +28,17 @@ export default function MyRegistrations() {
   };
 
   useEffect(() => { fetchRegistrations(); }, []);
+
+  const handleDismissRejected = async (registrationId) => {
+    try {
+      await api.delete(`/registrations/${registrationId}`);
+      setRegistrations(prev => prev.filter(r => r._id !== registrationId));
+      toast.success("Registration removed");
+    } catch {
+      toast.error("Failed to remove registration");
+    }
+    setDismissTarget(null);
+  };
 
   if (loading) return <LoadingState message="Loading registrations..." />;
 
@@ -87,7 +99,42 @@ export default function MyRegistrations() {
 
                   {/* Payment Status and Proof Display */}
                   {r.paymentStatus === "rejected" && (
-                    <div className="mt-3 rounded-[10px] bg-[var(--ev-danger-bg-subtle)] border border-[var(--ev-danger-border)] p-3">
+                    <div className="mt-3 rounded-[10px] bg-[var(--ev-danger-bg-subtle)] border border-[var(--ev-danger-border)] p-3 relative" style={{ paddingRight: '44px' }}>
+                      <button
+                        onClick={() => setDismissTarget(r)}
+                        style={{
+                          position: 'absolute',
+                          top: '12px',
+                          right: '12px',
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          lineHeight: 1,
+                          transition: 'all 0.2s ease',
+                          flexShrink: 0
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                          e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                          e.currentTarget.style.color = '#EF4444';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                          e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                        }}
+                        title="Remove this registration"
+                      >
+                        ✕
+                      </button>
                       <p className="text-[12px] text-[var(--ev-danger)] font-medium">Payment was rejected. Please contact admin.</p>
                     </div>
                   )}
@@ -137,6 +184,19 @@ export default function MyRegistrations() {
             );
           })}
         </div>
+      )}
+
+      {/* Dismiss confirmation modal */}
+      {dismissTarget && (
+        <ConfirmModal
+          title="Remove Registration"
+          message={<>Are you sure you want to remove this rejected registration for <span className="font-semibold text-[var(--ev-text)]">{dismissTarget.event?.title}</span>?</>}
+          confirmLabel="Remove"
+          variant="danger"
+          icon={X}
+          onConfirm={() => handleDismissRejected(dismissTarget._id)}
+          onClose={() => setDismissTarget(null)}
+        />
       )}
     </div>
   );
